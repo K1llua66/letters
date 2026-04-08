@@ -1,22 +1,21 @@
 --[[
-    Last Letter Helper - Xeno AutoPlay Edition
-    Полностью автоматическая версия для экзекутора Xeno
+    Last Letter Helper - Xeno AutoPlay Edition (с game:HttpGet)
+    Версия: 3.0
 ]]
 
 local Players = game:GetService("Players")
-local HttpService = game:GetService("HttpService")
 
 -- НАСТРОЙКИ
 local SETTINGS = {
     WORDS_PER_PAGE = 50,
     MAX_WORD_LENGTH = 20,
     MIN_WORD_LENGTH = 2,
-    KEY_DELAY = 0.05,      -- задержка между буквами
-    CHECK_INTERVAL = 0.3,  -- как часто проверять префикс (секунды)
+    KEY_DELAY = 0.05,
+    CHECK_INTERVAL = 0.3,
 }
 
--- ССЫЛКА НА СЛОВАРЬ (замени на свою, когда загрузишь)
-local WORDLIST_URL = "https://raw.githubusercontent.com/K1llua66/letters/main/words.txt"
+-- ССЫЛКА НА СЛОВАРЬ (рабочая, из открытого репозитория)
+local WORDLIST_URL = "https://raw.githubusercontent.com/dwyl/english-words/master/words.txt"
 
 -- Глобальные переменные
 local wordsByPrefix = {}
@@ -31,20 +30,27 @@ local function isValidEnglishWord(word)
     return true
 end
 
--- Загрузка словаря
+-- ЗАГРУЗКА СЛОВАРЯ через game:HttpGet (вместо HttpService)
 local function loadDictionary()
-    print("[LastLetter] Загрузка словаря...")
+    print("[LastLetter] Загрузка словаря через game:HttpGet...")
     
     local success, response = pcall(function()
-        return HttpService:GetAsync(WORDLIST_URL)
+        return game:HttpGet(WORDLIST_URL, true)
     end)
     
     if not success then
-        warn("[LastLetter] Ошибка загрузки словаря!")
+        warn("[LastLetter] Ошибка загрузки словаря! Ответ:", response)
+        return false
+    end
+    
+    if not response or response == "" then
+        warn("[LastLetter] Словарь пустой!")
         return false
     end
     
     local totalWords = 0
+    local filteredCount = 0
+    
     for line in string.gmatch(response, "[^\r\n]+") do
         local word = string.lower(string.match(line, "^[a-zA-Z]+$") or "")
         
@@ -55,6 +61,8 @@ local function loadDictionary()
             end
             table.insert(wordsByPrefix[prefix], word)
             totalWords = totalWords + 1
+        else
+            filteredCount = filteredCount + 1
         end
     end
     
@@ -63,7 +71,7 @@ local function loadDictionary()
         table.sort(words, function(a, b) return #a < #b end)
     end
     
-    print(string.format("[LastLetter] Словарь загружен! %d слов", totalWords))
+    print(string.format("[LastLetter] Словарь загружен! %d слов (отфильтровано %d)", totalWords, filteredCount))
     return true
 end
 
@@ -147,11 +155,12 @@ local function startAutoPlayLoop()
         
         if prefix and prefix ~= "" and prefix ~= currentPrefix then
             currentPrefix = prefix
-            print("[LastLetter] Префикс: " .. prefix)
+            print("[LastLetter] Найден префикс: " .. prefix)
             
             local word = autoSelectWord(prefix)
             if word then
                 local suffix = string.sub(word, #prefix + 1)
+                if suffix == "" then suffix = " " end
                 print("[LastLetter] Слово: " .. word .. " | Печатаю: " .. suffix)
                 typeSuffix(suffix)
             else
@@ -165,9 +174,16 @@ end
 
 -- GUI управления
 local function createGUI()
+    -- Ждём, пока игрок загрузится
+    local player = Players.LocalPlayer
+    if not player then
+        Players.PlayerAdded:Wait()
+        player = Players.LocalPlayer
+    end
+    
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "LastLetterHelper"
-    screenGui.Parent = Players.LocalPlayer:WaitForChild("PlayerGui")
+    screenGui.Parent = player:WaitForChild("PlayerGui")
     
     local frame = Instance.new("Frame")
     frame.Size = UDim2.new(0, 200, 0, 100)
@@ -215,15 +231,8 @@ local function init()
     
     local loaded = loadDictionary()
     if not loaded then
-        warn("[LastLetter] Словарь не загружен!")
+        warn("[LastLetter] Словарь не загружен! Проверь интернет или ссылку.")
         return
-    end
-    
-    -- Ждём игрока
-    local player = Players.LocalPlayer
-    if not player then
-        Players.PlayerAdded:Wait()
-        player = Players.LocalPlayer
     end
     
     createGUI()
