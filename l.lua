@@ -14,7 +14,7 @@ local SETTINGS = {
     WORDS_PER_PAGE = 50,
     MAX_WORD_LENGTH = 20,
     MIN_WORD_LENGTH = 2,
-    AUTO_PLAY_DELAY = 1,
+    AUTO_PLAY_DELAY = 0.05,
 }
 
 -- ССЫЛКА НА СЛОВАРЬ (твой файл на GitHub)
