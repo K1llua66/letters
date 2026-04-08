@@ -1,34 +1,45 @@
 --[[
     Last Letter Game Helper Script
-    Версия: 1.0.0
+    Версия: 2.0.0
     Описание: Авто-помощник для игры "Last Letter" с поиском слов и автовводом
+    Словарь: dwyl/english-words (466k слов, отфильтрованных)
 ]]
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
 
--- Настройки
+-- НАСТРОЙКИ
 local SETTINGS = {
-    WORDS_PER_PAGE = 50,        -- Слов на странице
-    MAX_WORD_LENGTH = 20,       -- Максимальная длина слова
-    MIN_WORD_LENGTH = 2,        -- Минимальная длина слова
-    AUTO_PLAY_DELAY = 1,        -- Задержка автоввода (секунды)
+    WORDS_PER_PAGE = 50,
+    MAX_WORD_LENGTH = 20,
+    MIN_WORD_LENGTH = 2,
+    AUTO_PLAY_DELAY = 1,
 }
 
--- URL словаря (onelistforallshort.txt)
-local WORDLIST_URL = "https://raw.githubusercontent.com/six2dez/OneListForAll/main/onelistforallshort.txt"
+-- ССЫЛКА НА СЛОВАРЬ (твой файл на GitHub)
+local WORDLIST_URL = "https://raw.githubusercontent.com/K1llua66/letters/main/words.txt"
 
 -- Глобальные переменные
-local wordsByPrefix = {}        -- {["a"] = {"a", "aa", "aaa", ...}}
+local wordsByPrefix = {}
 local remoteEvent = nil
 local autoPlayEnabled = false
 local currentPrefix = ""
 local currentPage = 1
 local totalPages = 1
 local currentWordList = {}
+local player = nil
 
--- Создаём RemoteEvent для связи
+-- Функция проверки: настоящее ли английское слово
+local function isValidEnglishWord(word)
+    if not string.match(word, "^[a-z]+$") then return false end
+    if #word < SETTINGS.MIN_WORD_LENGTH then return false end
+    if #word > SETTINGS.MAX_WORD_LENGTH then return false end
+    if string.find(word, "[%d%.%-%'%_]") then return false end
+    return true
+end
+
+-- Создаём RemoteEvent
 local function setupRemoteEvent()
     remoteEvent = Instance.new("RemoteEvent")
     remoteEvent.Name = "LastLetterHelper"
@@ -36,7 +47,7 @@ local function setupRemoteEvent()
     return remoteEvent
 end
 
--- Загрузка словаря с GitHub
+-- Загрузка и фильтрация словаря
 local function loadDictionary()
     print("[LastLetter] Загрузка словаря...")
     
@@ -45,50 +56,44 @@ local function loadDictionary()
     end)
     
     if not success then
-        warn("[LastLetter] Ошибка загрузки словаря! Проверь интернет.")
+        warn("[LastLetter] Ошибка загрузки! Проверь ссылку и интернет.")
         return false
     end
     
     local totalWords = 0
+    local filteredCount = 0
+    
     for line in string.gmatch(response, "[^\r\n]+") do
-        local word = string.lower(string.match(line, "^[a-zA-Z]+$"))
-        if word and #word >= SETTINGS.MIN_WORD_LENGTH and #word <= SETTINGS.MAX_WORD_LENGTH then
+        local word = string.lower(string.match(line, "^[a-zA-Z]+$") or "")
+        
+        if isValidEnglishWord(word) then
             local prefix = string.sub(word, 1, 1)
             if not wordsByPrefix[prefix] then
                 wordsByPrefix[prefix] = {}
             end
             table.insert(wordsByPrefix[prefix], word)
             totalWords = totalWords + 1
+        else
+            filteredCount = filteredCount + 1
         end
     end
     
     -- Сортируем слова по длине (от коротких к длинным)
     for prefix, words in pairs(wordsByPrefix) do
-        table.sort(words, function(a, b) 
-            if #a ~= #b then
-                return #a < #b
-            end
+        table.sort(words, function(a, b)
+            if #a ~= #b then return #a < #b end
             return a < b
         end)
     end
     
-    print(string.format("[LastLetter] Словарь загружен! %d слов, %d букв", 
-        totalWords, table_count(wordsByPrefix)))
+    print(string.format("[LastLetter] Словарь загружен! %d слов (отфильтровано %d)", 
+        totalWords, filteredCount))
     return true
 end
 
--- Вспомогательная функция
-local function table_count(t)
-    local count = 0
-    for _ in pairs(t) do count = count + 1 end
-    return count
-end
-
--- Поиск слов по префиксу (первые буквы)
+-- Поиск слов по префиксу
 local function findWordsByPrefix(prefix)
-    if not prefix or prefix == "" then
-        return {}
-    end
+    if not prefix or prefix == "" then return {} end
     
     local firstLetter = string.sub(prefix, 1, 1)
     local allWords = wordsByPrefix[firstLetter] or {}
@@ -124,12 +129,12 @@ end
 local function autoSelectWord(prefix)
     local matches = findWordsByPrefix(prefix)
     if #matches > 0 then
-        return matches[1]  -- самое короткое слово
+        return matches[1]
     end
     return nil
 end
 
--- Создание GUI (простой интерфейс)
+-- Создание GUI
 local function createGUI()
     local screenGui = Instance.new("ScreenGui")
     screenGui.Name = "LastLetterHelper"
@@ -137,7 +142,7 @@ local function createGUI()
     
     -- Основной фрейм
     local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0, 300, 0, 400)
+    frame.Size = UDim2.new(0, 300, 0, 420)
     frame.Position = UDim2.new(0, 10, 0, 10)
     frame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
     frame.BackgroundTransparency = 0.1
@@ -147,12 +152,12 @@ local function createGUI()
     -- Заголовок
     local title = Instance.new("TextLabel")
     title.Size = UDim2.new(1, 0, 0, 30)
-    title.Text = "Last Letter Helper"
+    title.Text = "Last Letter Helper v2"
     title.TextColor3 = Color3.fromRGB(255, 255, 255)
     title.BackgroundTransparency = 1
     title.Parent = frame
     
-    -- Поле для ввода префикса
+    -- Поле для ввода
     local prefixBox = Instance.new("TextBox")
     prefixBox.Size = UDim2.new(1, -10, 0, 30)
     prefixBox.Position = UDim2.new(0, 5, 0, 35)
@@ -201,9 +206,9 @@ local function createGUI()
     nextBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     nextBtn.Parent = frame
     
-    -- Список слов (ScrollingFrame)
+    -- Список слов
     local wordsList = Instance.new("ScrollingFrame")
-    wordsList.Size = UDim2.new(1, -10, 1, -110)
+    wordsList.Size = UDim2.new(1, -10, 1, -130)
     wordsList.Position = UDim2.new(0, 5, 0, 105)
     wordsList.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
     wordsList.BorderSizePixel = 0
@@ -218,14 +223,14 @@ local function createGUI()
     -- Кнопка авто-игры
     local autoPlayBtn = Instance.new("TextButton")
     autoPlayBtn.Size = UDim2.new(1, -10, 0, 35)
-    autoPlayBtn.Position = UDim2.new(0, 5, 0, 360)
+    autoPlayBtn.Position = UDim2.new(0, 5, 0, 380)
     autoPlayBtn.Text = "🔘 Авто-игра: ВЫКЛ"
     autoPlayBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 90)
     autoPlayBtn.BorderSizePixel = 0
     autoPlayBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     autoPlayBtn.Parent = frame
     
-    -- Кнопка перемещения фрейма
+    -- Кнопка перетаскивания
     local dragHandle = Instance.new("TextButton")
     dragHandle.Size = UDim2.new(1, 0, 0, 20)
     dragHandle.BackgroundColor3 = Color3.fromRGB(60, 60, 70)
@@ -258,14 +263,12 @@ local function createGUI()
     
     -- Обновление списка слов
     local function updateWordList()
-        -- Очищаем старые кнопки
         for _, child in ipairs(wordsList:GetChildren()) do
             if child:IsA("TextButton") then
                 child:Destroy()
             end
         end
         
-        -- Создаём новые кнопки для каждого слова
         for i, word in ipairs(currentWordList) do
             local wordBtn = Instance.new("TextButton")
             wordBtn.Size = UDim2.new(1, 0, 0, 30)
@@ -276,15 +279,12 @@ local function createGUI()
             wordBtn.Parent = wordsList
             
             wordBtn.MouseButton1Click:Connect(function()
-                -- Отправляем слово в чат/игру
                 remoteEvent:FireServer("submitWord", word)
                 print("[LastLetter] Отправлено слово: " .. word)
             end)
         end
         
-        -- Обновляем высоту Canvas
-        local count = #currentWordList
-        wordsList.CanvasSize = UDim2.new(0, 0, 0, count * 32 + 10)
+        wordsList.CanvasSize = UDim2.new(0, 0, 0, #currentWordList * 32 + 10)
     end
     
     -- Поиск
@@ -338,19 +338,15 @@ end
 local function setupRemoteHandlers()
     remoteEvent.OnClientEvent:Connect(function(action, data)
         if action == "autoWord" then
-            -- Автоматически вводим слово
             print("[LastLetter] Авто-ввод: " .. data)
-            -- Здесь код для автоматической отправки слова в чат игры
-            
         elseif action == "updatePrefix" then
-            -- Обновляем текущий префикс (последняя буква)
             currentPrefix = data
-            prefixBox.Text = currentPrefix
-            -- Автоматически ищем слова
-            searchBtn:Click()
+            if prefixBox then
+                prefixBox.Text = currentPrefix
+                searchBtn:Click()
+            end
             
             if autoPlayEnabled then
-                -- Автоматически выбираем слово
                 local word = autoSelectWord(currentPrefix)
                 if word then
                     task.wait(SETTINGS.AUTO_PLAY_DELAY)
@@ -367,25 +363,22 @@ local function init()
     
     setupRemoteEvent()
     
-    -- Загружаем словарь
     local loaded = loadDictionary()
     if not loaded then
         warn("[LastLetter] Не удалось загрузить словарь. GUI не будет создан.")
         return
     end
     
-    -- Ждём игрока
-    local player = Players.LocalPlayer
+    player = Players.LocalPlayer
     if not player then
         Players.PlayerAdded:Wait()
         player = Players.LocalPlayer
     end
     
-    -- Создаём GUI
     createGUI()
     setupRemoteHandlers()
     
-    print("[LastLetter] Готов к работе!")
+    print("[LastLetter] Готов к работе! Словарь загружен.")
 end
 
 -- Запуск
