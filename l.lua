@@ -17,7 +17,7 @@ local SETTINGS = {
 }
 
 -- URL словаря (onelistforallshort.txt)
-local WORDLIST_URL = "https://raw.githubusercontent.com/six2dez/OneListForAll/main/onelistforall.txt"
+local WORDLIST_URL = "https://raw.githubusercontent.com/six2dez/OneListForAll/main/onelistforallshort.txt"
 
 -- Глобальные переменные
 local wordsByPrefix = {}        -- {["a"] = {"a", "aa", "aaa", ...}}
