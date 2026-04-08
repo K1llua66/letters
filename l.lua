@@ -16,7 +16,7 @@ local SETTINGS = {
 }
 
 -- ССЫЛКА НА СЛОВАРЬ (замени на свою, когда загрузишь)
-local WORDLIST_URL = "https://raw.githubusercontent.com/K1llua66/refs/heads/main/words.txt"
+local WORDLIST_URL = "https://raw.githubusercontent.com/K1llua66/letters/main/words.txt"
 
 -- Глобальные переменные
 local wordsByPrefix = {}
